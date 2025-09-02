@@ -61,10 +61,15 @@ X_pca = pca.transform(X_scaled_all)
 pca2_df = pd.DataFrame({"PC1": X_pca[:, 0], "PC2": X_pca[:, 1], "Default": df[TARGET]})
 pca3_df = pd.DataFrame({"PC1": X_pca[:, 0], "PC2": X_pca[:, 1], "PC3": X_pca[:, 2], "Default": df[TARGET]})
 
-# EDA-Figuren (fixe Höhen, kompakte Ränder)
-fig_corr = px.imshow(corr, color_continuous_scale="RdBu", zmin=-1, zmax=1,
-                     labels=dict(color="Corr."))
-fig_corr.update_layout(margin=dict(l=6, r=6, t=24, b=6), height=340, coloraxis_colorbar=dict(len=0.8))
+# ---- Helper to lock figure sizing
+EDA_H = 340
+RES_H = 360
+
+fig_corr = px.imshow(
+    corr, color_continuous_scale="RdBu", zmin=-1, zmax=1, labels=dict(color="Corr.")
+)
+fig_corr.update_layout(margin=dict(l=6, r=6, t=24, b=6), height=EDA_H, autosize=False,
+                       coloraxis_colorbar=dict(len=0.8))
 
 fig_pca2 = px.scatter(
     pca2_df, x="PC1", y="PC2",
@@ -72,8 +77,7 @@ fig_pca2 = px.scatter(
     color_discrete_map={"Defaulted": "#e74c3c", "Not defaulted": "#2ecc71"},
     render_mode="webgl"
 )
-fig_pca2.update_layout(margin=dict(l=6, r=6, t=24, b=6), height=340)
-# Achsen bewusst begrenzen (keine "durch die Decke"-Plots)
+fig_pca2.update_layout(margin=dict(l=6, r=6, t=24, b=6), height=EDA_H, autosize=False)
 fig_pca2.update_xaxes(range=[-6, 6])
 fig_pca2.update_yaxes(range=[-6, 6])
 
@@ -83,7 +87,11 @@ fig_pca3 = px.scatter_3d(
     color_discrete_map={"Defaulted": "#e74c3c", "Not defaulted": "#2ecc71"},
     opacity=0.7
 )
-fig_pca3.update_layout(margin=dict(l=6, r=6, t=24, b=6), height=340)
+fig_pca3.update_layout(margin=dict(l=6, r=6, t=24, b=6), height=EDA_H, autosize=False,
+                       scene=dict(
+                           aspectmode="cube",
+                           xaxis=dict(range=[-6, 6]), yaxis=dict(range=[-6, 6]), zaxis=dict(range=[-6, 6])
+                       ))
 
 # -----------------------------
 # 3) Dash App Layout (Fokus: Layout)
@@ -94,7 +102,10 @@ server = app.server
 container = {"maxWidth": "1280px", "margin": "0 auto", "padding": "24px",
              "fontFamily": "system-ui,-apple-system,Segoe UI,Roboto,Arial"}
 
-card = {"background": "white", "borderRadius": "12px", "boxShadow": "0 6px 18px rgba(0,0,0,.08)", "padding": "16px"}
+card = {"background": "white", "borderRadius": "12px", "boxShadow": "0 6px 18px rgba(0,0,0,.08)",
+        "padding": "16px", "overflow": "hidden"}
+
+graph_cfg = {"displayModeBar": False, "responsive": False}
 
 app.layout = html.Div(style=container, children=[
 
@@ -102,7 +113,8 @@ app.layout = html.Div(style=container, children=[
             style={"textAlign": "center", "marginBottom": "18px"}),
 
     # Kopf: kurzer Text + Controls in 2 Spalten
-    html.Div(style={"display": "grid", "gridTemplateColumns": "1.2fr 0.8fr", "gap": "16px"}, children=[
+    html.Div(style={"display": "grid", "gridTemplateColumns": "1.2fr 0.8fr", "gap": "16px",
+                    "alignItems": "start"}, children=[
         html.Div(style=card, children=[
             html.P(
                 "Minimal demo focusing on layout. Adjust the network structure on the right and inspect "
@@ -110,7 +122,7 @@ app.layout = html.Div(style=container, children=[
             )
         ]),
         html.Div(style=card, children=[
-            html.Label("Hidden layers"), 
+            html.Label("Hidden layers"),
             dcc.Dropdown(
                 id="layers",
                 options=[{"label": f"{k} layer{'s' if k>1 else ''}", "value": k} for k in [1, 2, 3, 4]],
@@ -131,19 +143,36 @@ app.layout = html.Div(style=container, children=[
         ])
     ]),
 
-    # EDA: 3 Spalten, gleiche Höhen
+    # EDA: 3 Spalten, feste Höhen
     html.H3("Data exploration", style={"margin": "22px 0 10px"}),
-    html.Div(style={"display": "grid", "gridTemplateColumns": "repeat(3, 1fr)", "gap": "16px"}, children=[
-        html.Div(style=card, children=[html.H4("Correlation matrix", style={"marginTop": 0}), dcc.Graph(figure=fig_corr, config={"displayModeBar": False})]),
-        html.Div(style=card, children=[html.H4("PCA (2D)", style={"marginTop": 0}), dcc.Graph(figure=fig_pca2, config={"displayModeBar": False})]),
-        html.Div(style=card, children=[html.H4("PCA (3D)", style={"marginTop": 0}), dcc.Graph(figure=fig_pca3, config={"displayModeBar": False})]),
+    html.Div(style={"display": "grid", "gridTemplateColumns": "repeat(3, 1fr)", "gap": "16px",
+                    "alignItems": "start"}, children=[
+        html.Div(style=card, children=[
+            html.H4("Correlation matrix", style={"marginTop": 0}),
+            dcc.Graph(figure=fig_corr, config=graph_cfg, style={"height": f"{EDA_H}px"})
+        ]),
+        html.Div(style=card, children=[
+            html.H4("PCA (2D)", style={"marginTop": 0}),
+            dcc.Graph(figure=fig_pca2, config=graph_cfg, style={"height": f"{EDA_H}px"})
+        ]),
+        html.Div(style=card, children=[
+            html.H4("PCA (3D)", style={"marginTop": 0}),
+            dcc.Graph(figure=fig_pca3, config=graph_cfg, style={"height": f"{EDA_H}px"})
+        ]),
     ]),
 
-    # Ergebnisse: 2 Spalten (gleich hoch)
+    # Ergebnisse: 2 Spalten, feste Höhen
     html.H3("Results", style={"margin": "22px 0 10px"}),
-    html.Div(style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "16px"}, children=[
-        html.Div(style=card, children=[html.H4("Confusion matrix", style={"marginTop": 0}), dcc.Graph(id="cm-heatmap", config={"displayModeBar": False}, style={"height": 360})]),
-        html.Div(style=card, children=[html.H4("Training loss", style={"marginTop": 0}), dcc.Graph(id="loss-curve", config={"displayModeBar": False}, style={"height": 360})]),
+    html.Div(style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "16px",
+                    "alignItems": "start"}, children=[
+        html.Div(style=card, children=[
+            html.H4("Confusion matrix", style={"marginTop": 0}),
+            dcc.Graph(id="cm-heatmap", config=graph_cfg, style={"height": f"{RES_H}px"})
+        ]),
+        html.Div(style=card, children=[
+            html.H4("Training loss", style={"marginTop": 0}),
+            dcc.Graph(id="loss-curve", config=graph_cfg, style={"height": f"{RES_H}px"})
+        ]),
     ])
 ])
 
@@ -160,7 +189,6 @@ app.layout = html.Div(style=container, children=[
      Input("maxiter", "value")]
 )
 def train_and_report(n_clicks, n_layers, n_neurons, max_iter):
-    # Split + Scale
     X_train, X_test, y_train, y_test = train_test_split(
         df[FEATURES], df[TARGET], test_size=0.2, random_state=123, stratify=df[TARGET]
     )
@@ -184,22 +212,20 @@ def train_and_report(n_clicks, n_layers, n_neurons, max_iter):
     y_pred = clf.predict(Xte)
     acc = accuracy_score(y_test, y_pred)
 
-    # Confusion Matrix (kompakt)
     cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
     cm_df = pd.DataFrame(cm, index=["Act. ND", "Act. D"], columns=["Pred. ND", "Pred. D"])
     cm_fig = px.imshow(cm_df, text_auto=True, color_continuous_scale="Greens")
-    cm_fig.update_layout(margin=dict(l=6, r=6, t=30, b=6), height=360)
+    cm_fig.update_layout(margin=dict(l=6, r=6, t=30, b=6), height=RES_H, autosize=False)
 
-    # Loss Curve mit y-Grenze (keine "Decke")
     loss = getattr(clf, "loss_curve_", [])
     loss_fig = go.Figure(go.Scatter(y=loss, mode="lines"))
     loss_fig.update_layout(
         margin=dict(l=6, r=6, t=30, b=6),
-        height=360,
+        height=RES_H,
+        autosize=False,
         xaxis_title="Iteration",
         yaxis_title="Loss"
     )
-    # konservative Range, nur setzen wenn Daten vorhanden
     if len(loss) > 0:
         ymin = max(0, min(loss) - 0.05)
         ymax = max(loss) + 0.05
